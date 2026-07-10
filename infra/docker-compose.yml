@@ -1,0 +1,64 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: timescale/timescaledb-ha:pg16
+    container_name: vayu_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vayu
+      POSTGRES_PASSWORD: vayu_dev_2025
+      POSTGRES_DB: vayu_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  redis:
+    image: redis:7-alpine
+    container_name: vayu_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ../backend
+    container_name: vayu_backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file:
+      - ../.env
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ../backend:/app
+      - /app/node_modules
+
+  ml-service:
+    build: ../ml-service
+    container_name: vayu_ml
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../.env
+    depends_on:
+      - postgres
+    volumes:
+      - ../ml-service:/app
+
+  frontend:
+    build: ../frontend
+    container_name: vayu_frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules
+
+volumes:
+  pgdata:
