@@ -7,10 +7,7 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'vayu-backend' })
-})
-
+app.use('/api/wards', require('./routes/wards.routes.js'))
 // Routes — add as you build them
 // app.use('/api/wards',    require('./routes/wards'))
 // app.use('/api/forecast', require('./routes/forecast'))
