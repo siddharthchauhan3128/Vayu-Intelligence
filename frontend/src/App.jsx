@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { MapContainer, TileLayer, CircleMarker, Tooltip } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
-
+import { useWebSocket } from './hooks/useWebSocket.jsx'
 // AQI → colour
 function aqiColor(aqi) {
   if (aqi <= 50)  return '#22C55E'
@@ -34,16 +34,31 @@ const WARD_COORDS = {
 }
 
 export default function App() {
-  const [wards, setWards] = useState([])
-  const [selected, setSelected] = useState(null)
-  const [city, setCity] = useState('mumbai')
+  const [allWards, setAllWards] = useState({ mumbai: [], delhi: [] })
+    const [selected, setSelected] = useState(null)
+    const [city, setCity] = useState('mumbai')
+    const [lastUpdate, setLastUpdate] = useState(null)
 
-  useEffect(() => {
-    fetch(`http://localhost:3001/api/wards?city=${city}`)
-      .then(r => r.json())
-      .then(d => setWards(d.data || []))
-      .catch(console.error)
-  }, [city])
+    // wards for current city
+    const wards = allWards[city] || []
+
+    // Initial fetch for both cities
+    useEffect(() => {
+      ['mumbai', 'delhi'].forEach(c => {
+        fetch(`http://localhost:3001/api/wards?city=${c}`)
+          .then(r => r.json())
+          .then(d => setAllWards(prev => ({ ...prev, [c]: d.data || [] })))
+          .catch(console.error)
+      })
+    }, [])
+
+    // WebSocket — updates per city
+    const handleWsMessage = useCallback((updatedCity, data) => {
+      setAllWards(prev => ({ ...prev, [updatedCity]: data }))
+      setLastUpdate(new Date().toLocaleTimeString())
+    }, [])
+
+    useWebSocket(handleWsMessage)
 
   return (
     <div style={{ display:'flex', height:'100vh', background:'#0B1120', fontFamily:'sans-serif' }}>
@@ -104,6 +119,11 @@ export default function App() {
             Urban AQI Intelligence
           </div>
           <div style={{ fontSize:20, fontWeight:600, marginTop:4 }}>Vayu</div>
+          {lastUpdate && (
+              <div style={{ fontSize:10, color:'#22C55E', marginTop:2 }}>
+                ● Live · updated {lastUpdate}
+              </div>
+          )}
         </div>
 
         {/* City selector */}
