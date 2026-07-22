@@ -17,7 +17,6 @@ def get_forecast(req: ForecastRequest):
             current_aqi=req.current_aqi,
             hours=req.hours
         )
-        # Return every 6h for chart (12 points for 72h)
         sampled = forecast[::6]
         return {
             "ward": req.ward_name,

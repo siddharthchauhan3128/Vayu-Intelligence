@@ -16,7 +16,8 @@ app.get('/health', (req, res) => {
 })
 
 app.use('/api/wards', require('./routes/wards.routes.js'))
-
+app.use('/api/forecast', require('./routes/forecast.routes.js'))
+app.use('/api/agent', require('./routes/agent.route.js'));
 // Cron: fetch AQI every 5 min
 cron.schedule('*/5 * * * *', fetchAQI)
 
