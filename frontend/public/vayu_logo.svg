@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Dark background -->
+  <rect width="100" height="100" rx="20" fill="#060D1F" />
+  
+  <!-- Outer Tech Orbit (Satellites/Data) -->
+  <circle cx="50" cy="50" r="36" fill="none" stroke="#1E3A5C" stroke-width="6" stroke-dasharray="45 15 20 15" stroke-linecap="round" transform="rotate(-45 50 50)" />
+  
+  <!-- Atmospheric Wind Wave 1 (Darker Blue) -->
+  <path d="M 25 45 C 20 70, 50 85, 70 65" fill="none" stroke="#3B82F6" stroke-width="8" stroke-linecap="round" />
+  
+  <!-- Atmospheric Wind Wave 2 (Neon Cyan) -->
+  <path d="M 75 55 C 80 30, 50 15, 30 35" fill="none" stroke="#00D4FF" stroke-width="8" stroke-linecap="round" />
+  
+  <!-- Core AI Intelligence Node -->
+  <circle cx="50" cy="50" r="10" fill="#60A5FA" />
+  
+  <!-- Floating Sensor Node -->
+  <circle cx="78" cy="25" r="5" fill="#00D4FF" />
+</svg>

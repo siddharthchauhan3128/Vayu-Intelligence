@@ -1,55 +1,68 @@
-const express = require('express');
-const router = express.Router();
-const { GoogleGenAI } = require('@google/genai');
+const express = require('express')
+const router = express.Router()
+const pool = require('../db/pool')
+const redis = require('../services/redisClient.js')
+const { getAttribution } = require('../services/mlClient.js')
+const { runAttributionAgent } = require('../agents/attributionAgent.js')
 
-// Hackathon Trick: Fallback to the hardcoded key if Docker fails to load the .env file
-// REPLACE the fallback string below with your actual API key!
-const API_KEY = process.env.GEMINI_API_KEY || "PASTE_YOUR_GEMINI_KEY_HERE"; 
-
-const ai = new GoogleGenAI({ apiKey: API_KEY });
-
-router.post('/analyze', async (req, res) => {
+// POST /api/agent/attribute/:wardId
+router.post('/attribute/:wardId', async (req, res) => {
   try {
-    const { ward_name, aqi, pm25, pm10, land_use_type, population } = req.body;
+    const { wardId } = req.params
 
-    const systemInstruction = `
-      You are 'Vayu', an AI Urban Air Quality Intelligence agent for Indian Smart Cities.
-      Analyze the current environmental data for the given ward and output a concise, 3-bullet-point intervention plan for municipal officers.
-      
-      Rules:
-      1. Be highly specific to the land use type (e.g., if industrial, mention factories/emissions).
-      2. Keep it under 100 words.
-      3. Tone: Urgent, objective, and authoritative.
-    `;
+    // Check cache — agent responses cached 1h
+    const cached = await redis.get(`agent:attribution:${wardId}`)
+    if (cached) {
+      return res.json({ success: true, cached: true, data: JSON.parse(cached) })
+    }
 
-    const userPrompt = `
-      Ward: ${ward_name || 'Unknown'}
-      AQI: ${aqi || 0}
-      PM2.5: ${pm25 || 0} µg/m³
-      PM10: ${pm10 || 0} µg/m³
-      Zone Type: ${land_use_type || 'Mixed'}
-      Population At Risk: ${population || 'Unknown'}
-      
-      Provide the rapid intervention breakdown.
-    `;
+    // Get ward data
+    const wardRes = await pool.query(
+      `SELECT w.ward_name, w.land_use_type, w.city,
+              COALESCE(a.aqi, 150) as aqi
+       FROM wards w
+       LEFT JOIN LATERAL (
+         SELECT aqi FROM aqi_readings
+         WHERE ward_id = w.id ORDER BY time DESC LIMIT 1
+       ) a ON true
+       WHERE w.id = $1`,
+      [wardId]
+    )
 
-    // Call the Gemini model
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: userPrompt,
-      config: {
-        systemInstruction: systemInstruction,
-        temperature: 0.3, 
-      }
-    });
+    if (wardRes.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Ward not found' })
+    }
 
-    res.json({ success: true, analysis: response.text });
-  } catch (error) {
-    // This will print the EXACT reason Gemini failed to your Docker logs
-    console.error("=== GEMINI AGENT ERROR ===");
-    console.error(error);
-    res.status(500).json({ success: false, error: "Failed to generate AI analysis" });
+    const { ward_name, land_use_type, city, aqi } = wardRes.rows[0]
+
+    // Get ML attribution
+    const attribution = await getAttribution(ward_name, land_use_type, aqi)
+
+    // Run Claude agent
+    const explanation = await runAttributionAgent(
+      ward_name, city, aqi,
+      attribution.sources,
+      land_use_type
+    )
+
+    const result = {
+      ward: ward_name,
+      city,
+      aqi,
+      sources: attribution.sources,
+      top_source: attribution.top_source,
+      explanation,
+      generated_at: new Date().toISOString()
+    }
+
+    // Cache 1 hour
+    await redis.set(`agent:attribution:${wardId}`, JSON.stringify(result), { EX: 3600 })
+
+    res.json({ success: true, cached: false, data: result })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ success: false, error: err.message })
   }
-});
+})
 
-module.exports = router;
+module.exports = router
